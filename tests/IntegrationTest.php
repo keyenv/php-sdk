@@ -23,8 +23,8 @@ final class IntegrationTest extends TestCase
 
     public static function setUpBeforeClass(): void
     {
-        $token = getenv('KEYENV_SERVICE_TOKEN');
-        self::$projectId = getenv('KEYENV_PROJECT_ID');
+        $token = getenv('KEYENV_SERVICE_TOKEN') ?: null;
+        self::$projectId = getenv('KEYENV_PROJECT_ID') ?: null;
 
         if (empty($token) || empty(self::$projectId)) {
             self::markTestSkipped('KEYENV_SERVICE_TOKEN and KEYENV_PROJECT_ID must be set');
