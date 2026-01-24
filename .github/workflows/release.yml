@@ -1,9 +1,8 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  release:
+    types: [published]
 
 jobs:
   release:
@@ -23,13 +22,6 @@ jobs:
 
       - name: Run tests
         run: composer test
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 # Note: Packagist auto-updates from GitHub releases when the repo is linked.
 # To set up: Go to packagist.org, submit https://github.com/keyenv/php-sdk
