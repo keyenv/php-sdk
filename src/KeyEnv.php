@@ -457,12 +457,19 @@ class KeyEnv
 
         // Handle error responses
         if ($statusCode >= 400) {
-            throw new KeyEnvException(
-                $data['error'] ?? 'Unknown error',
-                $statusCode,
-                $data['code'] ?? null,
-                $data['details'] ?? []
-            );
+            // API error format: {"error": {"code": "...", "message": "...", "details": {...}}}
+            $error = $data['error'] ?? [];
+            if (is_array($error)) {
+                $message = $error['message'] ?? 'Unknown error';
+                $code = $error['code'] ?? null;
+                $details = $error['details'] ?? [];
+            } else {
+                // Fallback for simple error format: {"error": "message"}
+                $message = is_string($error) ? $error : 'Unknown error';
+                $code = $data['code'] ?? null;
+                $details = $data['details'] ?? [];
+            }
+            throw new KeyEnvException($message, $statusCode, $code, $details);
         }
 
         return $data ?? [];
