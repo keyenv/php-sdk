@@ -27,11 +27,12 @@ use KeyEnv\Types\SecretWithValue;
  */
 class KeyEnv
 {
-    private const BASE_URL = 'https://api.keyenv.dev';
+    private const DEFAULT_BASE_URL = 'https://api.keyenv.dev';
     private const DEFAULT_TIMEOUT = 30;
     private const USER_AGENT = 'keyenv-php/1.0.0';
 
     private string $token;
+    private string $baseUrl;
     private int $timeout;
 
     /**
@@ -39,8 +40,9 @@ class KeyEnv
      *
      * @param string $token Service token for authentication
      * @param int $timeout Request timeout in seconds (default: 30)
+     * @param string|null $baseUrl Custom API base URL. Also configurable via KEYENV_API_URL env var.
      */
-    public function __construct(string $token, int $timeout = self::DEFAULT_TIMEOUT)
+    public function __construct(string $token, int $timeout = self::DEFAULT_TIMEOUT, ?string $baseUrl = null)
     {
         if (empty($token)) {
             throw new \InvalidArgumentException('KeyEnv token is required');
@@ -48,6 +50,14 @@ class KeyEnv
 
         $this->token = $token;
         $this->timeout = $timeout;
+
+        if ($baseUrl !== null) {
+            $this->baseUrl = rtrim($baseUrl, '/');
+        } elseif ($envUrl = getenv('KEYENV_API_URL')) {
+            $this->baseUrl = rtrim($envUrl, '/');
+        } else {
+            $this->baseUrl = self::DEFAULT_BASE_URL;
+        }
     }
 
     /**
@@ -55,10 +65,11 @@ class KeyEnv
      *
      * @param string $token Service token for authentication
      * @param int $timeout Request timeout in seconds (default: 30)
+     * @param string|null $baseUrl Custom API base URL. Also configurable via KEYENV_API_URL env var.
      */
-    public static function create(string $token, int $timeout = self::DEFAULT_TIMEOUT): self
+    public static function create(string $token, int $timeout = self::DEFAULT_TIMEOUT, ?string $baseUrl = null): self
     {
-        return new self($token, $timeout);
+        return new self($token, $timeout, $baseUrl);
     }
 
     /**
@@ -361,7 +372,7 @@ class KeyEnv
             throw new KeyEnvException('cURL extension is required', 0);
         }
 
-        $url = self::BASE_URL . $path;
+        $url = $this->baseUrl . $path;
 
         $headers = [
             'Authorization: Bearer ' . $this->token,
