@@ -31,6 +31,9 @@ final class IntegrationTest extends TestCase
     /** @var string[] Keys created during tests for cleanup */
     private static array $createdKeys = [];
 
+    /** @var array{env: string, key: string}[] Keys created in non-default environments for cleanup */
+    private static array $extraEnvKeys = [];
+
     protected function setUp(): void
     {
         if (!getenv('KEYENV_API_URL')) {
@@ -63,9 +66,17 @@ final class IntegrationTest extends TestCase
                     // Ignore cleanup errors - secret may already be deleted
                 }
             }
+            foreach (self::$extraEnvKeys as $entry) {
+                try {
+                    self::$client->deleteSecret(self::$project, $entry['env'], $entry['key']);
+                } catch (\Exception $e) {
+                    // Ignore cleanup errors
+                }
+            }
         }
 
         self::$createdKeys = [];
+        self::$extraEnvKeys = [];
     }
 
     /**
@@ -519,5 +530,174 @@ final class IntegrationTest extends TestCase
         $this->expectException(KeyEnvException::class);
 
         self::$client->getSecrets(self::$project, 'non-existent-environment-' . time());
+    }
+
+    // ==================== Token Validation Tests ====================
+
+    /**
+     * @test
+     */
+    public function validateToken_returns_user_info(): void
+    {
+        $user = self::$client->validateToken();
+
+        $this->assertIsArray($user);
+        $this->assertArrayHasKey('id', $user);
+    }
+
+    /**
+     * @test
+     */
+    public function invalidToken_throws_unauthorized(): void
+    {
+        $badClient = KeyEnv::create('invalid_token_xxx');
+
+        $this->expectException(KeyEnvException::class);
+
+        try {
+            $badClient->listProjects();
+        } catch (KeyEnvException $e) {
+            $this->assertEquals(401, $e->getStatusCode());
+            $this->assertTrue($e->isUnauthorized());
+            throw $e;
+        }
+    }
+
+    // ==================== Load Env Tests ====================
+
+    /**
+     * @test
+     */
+    public function loadEnv_loads_into_environment(): void
+    {
+        $key = $this->uniqueKey('LOADENV');
+        $value = 'loaded-env-value-' . time();
+
+        self::$client->createSecret(
+            self::$project,
+            self::$environment,
+            $key,
+            $value
+        );
+
+        $count = self::$client->loadEnv(self::$project, self::$environment);
+
+        $this->assertGreaterThan(0, $count);
+        $this->assertEquals($value, getenv($key));
+
+        // Clean up the environment variable
+        putenv($key);
+        unset($_ENV[$key]);
+    }
+
+    // ==================== Environment Isolation Tests ====================
+
+    /**
+     * @test
+     */
+    public function secrets_isolated_across_environments(): void
+    {
+        $key = $this->uniqueKey('ISOLATION');
+        $devValue = 'dev-value-' . time();
+        $stagingValue = 'staging-value-' . time();
+
+        // Create in development
+        self::$client->createSecret(
+            self::$project,
+            self::$environment,
+            $key,
+            $devValue
+        );
+
+        // Create in staging
+        self::$client->createSecret(
+            self::$project,
+            'staging',
+            $key,
+            $stagingValue
+        );
+        self::$extraEnvKeys[] = ['env' => 'staging', 'key' => $key];
+
+        // Verify development has its own value
+        $devSecret = self::$client->getSecret(
+            self::$project,
+            self::$environment,
+            $key
+        );
+        $this->assertEquals($devValue, $devSecret->value);
+
+        // Verify staging has its own value
+        $stagingSecret = self::$client->getSecret(
+            self::$project,
+            'staging',
+            $key
+        );
+        $this->assertEquals($stagingValue, $stagingSecret->value);
+    }
+
+    // ==================== Special Characters Tests ====================
+
+    /**
+     * @test
+     */
+    public function handles_special_characters(): void
+    {
+        // a) Connection string with special characters
+        $connKey = $this->uniqueKey('CONNSTR');
+        $connValue = 'postgresql://user:p@ss@localhost:5432/db?sslmode=require';
+
+        self::$client->createSecret(
+            self::$project,
+            self::$environment,
+            $connKey,
+            $connValue
+        );
+
+        $retrieved = self::$client->getSecret(
+            self::$project,
+            self::$environment,
+            $connKey
+        );
+        $this->assertEquals($connValue, $retrieved->value);
+
+        // b) Multiline value
+        $multiKey = $this->uniqueKey('MULTILINE');
+        $multiValue = "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF8PbnGy\n-----END RSA PRIVATE KEY-----";
+
+        self::$client->createSecret(
+            self::$project,
+            self::$environment,
+            $multiKey,
+            $multiValue
+        );
+
+        $retrieved = self::$client->getSecret(
+            self::$project,
+            self::$environment,
+            $multiKey
+        );
+        $this->assertEquals($multiValue, $retrieved->value);
+
+        // c) JSON string
+        $jsonKey = $this->uniqueKey('JSONVAL');
+        $jsonValue = json_encode(['key' => 'value', 'nested' => ['array' => [1, 2, 3]]]);
+
+        self::$client->createSecret(
+            self::$project,
+            self::$environment,
+            $jsonKey,
+            $jsonValue
+        );
+
+        $retrieved = self::$client->getSecret(
+            self::$project,
+            self::$environment,
+            $jsonKey
+        );
+        $this->assertEquals($jsonValue, $retrieved->value);
+        $this->assertEquals(
+            ['key' => 'value', 'nested' => ['array' => [1, 2, 3]]],
+            json_decode($retrieved->value, true)
+        );
     }
 }
