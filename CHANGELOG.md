@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/keyenv/php-sdk/compare/v1.2.0...v1.2.1) (2026-02-16)
+
+
+### Bug Fixes
+
+* add explicit Packagist notification to release workflow ([5d50e75](https://github.com/keyenv/php-sdk/commit/5d50e7594234ddd5be9535f56e486d058cc368d2))
+
 ## [1.2.0](https://github.com/keyenv/php-sdk/compare/v1.1.0...v1.2.0) (2026-01-26)
 
 
