@@ -38,6 +38,9 @@ jobs:
       - name: Run tests
         run: composer test
 
-# Note: Packagist auto-updates from GitHub releases when the repo is linked.
-# To set up: Go to packagist.org, submit https://github.com/keyenv/php-sdk
-# and enable GitHub Service Hook for automatic updates.
+      - name: Notify Packagist
+        run: |
+          curl -s -X POST \
+            "https://packagist.org/api/update-package?username=ivannovazzi&apiToken=${{ secrets.PACKAGIST_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"repository":{"url":"https://packagist.org/packages/keyenv/keyenv"}}'
