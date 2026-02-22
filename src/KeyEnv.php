@@ -331,7 +331,8 @@ class KeyEnv
      */
     public function validateToken(): array
     {
-        return $this->request('GET', '/api/v1/users/me');
+        $data = $this->request('GET', '/api/v1/users/me');
+        return $data['data'] ?? $data;
     }
 
     /**
@@ -354,7 +355,8 @@ class KeyEnv
      */
     public function getCurrentUser(): array
     {
-        return $this->request('GET', '/api/v1/users/me');
+        $data = $this->request('GET', '/api/v1/users/me');
+        return $data['data'] ?? $data;
     }
 
     /**
