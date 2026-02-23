@@ -6,8 +6,12 @@ namespace KeyEnv\Tests;
 
 use KeyEnv\KeyEnv;
 use KeyEnv\KeyEnvException;
+use KeyEnv\Types\BulkImportResult;
 use KeyEnv\Types\Environment;
+use KeyEnv\Types\EnvironmentPermission;
+use KeyEnv\Types\ProjectDefault;
 use KeyEnv\Types\Secret;
+use KeyEnv\Types\SecretHistory;
 use KeyEnv\Types\SecretWithValue;
 use PHPUnit\Framework\TestCase;
 
@@ -145,9 +149,9 @@ final class IntegrationTest extends TestCase
     /**
      * @test
      */
-    public function getSecrets_returns_secrets_with_values(): void
+    public function exportSecrets_returns_secrets_with_values(): void
     {
-        $secrets = self::$client->getSecrets(self::$project, self::$environment);
+        $secrets = self::$client->exportSecrets(self::$project, self::$environment);
 
         $this->assertIsArray($secrets);
 
@@ -163,9 +167,9 @@ final class IntegrationTest extends TestCase
     /**
      * @test
      */
-    public function getSecretsAsArray_returns_key_value_pairs(): void
+    public function exportSecretsAsArray_returns_key_value_pairs(): void
     {
-        $secrets = self::$client->getSecretsAsArray(self::$project, self::$environment);
+        $secrets = self::$client->exportSecretsAsArray(self::$project, self::$environment);
 
         $this->assertIsArray($secrets);
 
@@ -529,7 +533,7 @@ final class IntegrationTest extends TestCase
     {
         $this->expectException(KeyEnvException::class);
 
-        self::$client->getSecrets(self::$project, 'non-existent-environment-' . time());
+        self::$client->exportSecrets(self::$project, 'non-existent-environment-' . time());
     }
 
     // ==================== Token Validation Tests ====================
