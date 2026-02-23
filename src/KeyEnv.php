@@ -86,7 +86,7 @@ class KeyEnv
         $data = $this->request('GET', $path);
 
         $secrets = [];
-        foreach ($data['secrets'] ?? [] as $secretData) {
+        foreach ($data['data'] ?? [] as $secretData) {
             $secrets[] = SecretWithValue::fromArray($secretData);
         }
 
@@ -125,7 +125,7 @@ class KeyEnv
         $path = "/api/v1/projects/{$projectId}/environments/{$environment}/secrets/{$key}";
         $data = $this->request('GET', $path);
 
-        return SecretWithValue::fromArray($data['secret'] ?? $data);
+        return SecretWithValue::fromArray($data['data'] ?? $data);
     }
 
     /**
@@ -142,7 +142,7 @@ class KeyEnv
         $data = $this->request('GET', $path);
 
         $secrets = [];
-        foreach ($data['secrets'] ?? [] as $secretData) {
+        foreach ($data['data'] ?? [] as $secretData) {
             $secrets[] = Secret::fromArray($secretData);
         }
 
@@ -175,7 +175,7 @@ class KeyEnv
 
         $data = $this->request('POST', $path, $payload);
 
-        return Secret::fromArray($data['secret'] ?? $data);
+        return Secret::fromArray($data['data'] ?? $data);
     }
 
     /**
@@ -204,7 +204,7 @@ class KeyEnv
 
         $data = $this->request('PUT', $path, $payload);
 
-        return Secret::fromArray($data['secret'] ?? $data);
+        return Secret::fromArray($data['data'] ?? $data);
     }
 
     /**
@@ -262,7 +262,7 @@ class KeyEnv
         $data = $this->request('GET', $path);
 
         $environments = [];
-        foreach ($data['environments'] ?? [] as $envData) {
+        foreach ($data['data'] ?? [] as $envData) {
             $environments[] = Environment::fromArray($envData);
         }
 
@@ -344,7 +344,7 @@ class KeyEnv
     public function listProjects(): array
     {
         $data = $this->request('GET', '/api/v1/projects');
-        return $data['projects'] ?? [];
+        return $data['data'] ?? [];
     }
 
     /**
