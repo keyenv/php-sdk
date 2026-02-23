@@ -377,24 +377,6 @@ class KeyEnvTest extends TestCase
         $this->assertEquals('write', $array['default_role']);
     }
 
-    // ==================== Deprecated Method Alias Tests ====================
-
-    public function testGetSecretsMethodExists(): void
-    {
-        $this->assertTrue(
-            method_exists(KeyEnv::class, 'getSecrets'),
-            'Deprecated getSecrets() method should still exist as alias'
-        );
-    }
-
-    public function testGetSecretsAsArrayMethodExists(): void
-    {
-        $this->assertTrue(
-            method_exists(KeyEnv::class, 'getSecretsAsArray'),
-            'Deprecated getSecretsAsArray() method should still exist as alias'
-        );
-    }
-
     public function testExportSecretsMethodExists(): void
     {
         $this->assertTrue(

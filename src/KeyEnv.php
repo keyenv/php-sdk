@@ -281,36 +281,6 @@ class KeyEnv
     }
 
     /**
-     * Get all secrets for a project environment with their decrypted values.
-     *
-     * @param string $projectId The project ID
-     * @param string $environment The environment name (e.g., 'production', 'development')
-     * @return SecretWithValue[] Array of secrets with their values
-     * @throws KeyEnvException
-     *
-     * @deprecated Use exportSecrets() instead. This method will be removed in a future version.
-     */
-    public function getSecrets(string $projectId, string $environment): array
-    {
-        return $this->exportSecrets($projectId, $environment);
-    }
-
-    /**
-     * Get secrets as an associative array (key => value).
-     *
-     * @param string $projectId The project ID
-     * @param string $environment The environment name
-     * @return array<string, string> Associative array of secret key => value
-     * @throws KeyEnvException
-     *
-     * @deprecated Use exportSecretsAsArray() instead. This method will be removed in a future version.
-     */
-    public function getSecretsAsArray(string $projectId, string $environment): array
-    {
-        return $this->exportSecretsAsArray($projectId, $environment);
-    }
-
-    /**
      * Get a single secret with its decrypted value.
      *
      * @param string $projectId The project ID
