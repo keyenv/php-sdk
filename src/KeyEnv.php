@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace KeyEnv;
 
+use KeyEnv\Types\BulkImportResult;
 use KeyEnv\Types\Environment;
+use KeyEnv\Types\EnvironmentPermission;
+use KeyEnv\Types\ProjectDefault;
 use KeyEnv\Types\Secret;
+use KeyEnv\Types\SecretHistory;
 use KeyEnv\Types\SecretWithValue;
 
 /**
@@ -17,8 +21,8 @@ use KeyEnv\Types\SecretWithValue;
  *
  * $client = KeyEnv::create($_ENV['KEYENV_TOKEN']);
  *
- * // Get all secrets for an environment
- * $secrets = $client->getSecrets('project-id', 'production');
+ * // Export all secrets for an environment
+ * $secrets = $client->exportSecrets('project-id', 'production');
  *
  * // Get a single secret
  * $secret = $client->getSecret('project-id', 'production', 'DATABASE_URL');
@@ -72,21 +76,186 @@ class KeyEnv
         return new self($token, $timeout, $baseUrl);
     }
 
+    // ============================================================================
+    // User / Token
+    // ============================================================================
+
     /**
-     * Get all secrets for a project environment with their decrypted values.
+     * Get current user information.
+     *
+     * @return array<string, mixed> User information
+     * @throws KeyEnvException
+     */
+    public function getCurrentUser(): array
+    {
+        $data = $this->request('GET', '/api/v1/users/me');
+        return $data['data'] ?? $data;
+    }
+
+    /**
+     * Validate the token and get current user info.
+     *
+     * @return array<string, mixed> User information
+     * @throws KeyEnvException
+     */
+    public function validateToken(): array
+    {
+        return $this->getCurrentUser();
+    }
+
+    // ============================================================================
+    // Projects
+    // ============================================================================
+
+    /**
+     * List all accessible projects.
+     *
+     * @return array<string, mixed>[] Array of projects
+     * @throws KeyEnvException
+     */
+    public function listProjects(): array
+    {
+        $data = $this->request('GET', '/api/v1/projects');
+        return $data['data'] ?? [];
+    }
+
+    /**
+     * Get a project by ID.
+     *
+     * @param string $projectId The project ID or slug
+     * @return array<string, mixed> Project with environments
+     * @throws KeyEnvException
+     */
+    public function getProject(string $projectId): array
+    {
+        $data = $this->request('GET', "/api/v1/projects/{$projectId}");
+        return $data['data'] ?? $data;
+    }
+
+    /**
+     * Create a new project.
+     *
+     * @param string $teamId The team ID
+     * @param string $name The project name
+     * @return array<string, mixed> The created project
+     * @throws KeyEnvException
+     */
+    public function createProject(string $teamId, string $name): array
+    {
+        $data = $this->request('POST', '/api/v1/projects', [
+            'team_id' => $teamId,
+            'name' => $name,
+        ]);
+        return $data['data'] ?? $data;
+    }
+
+    /**
+     * Delete a project.
+     *
+     * @param string $projectId The project ID or slug
+     * @throws KeyEnvException
+     */
+    public function deleteProject(string $projectId): void
+    {
+        $this->request('DELETE', "/api/v1/projects/{$projectId}");
+    }
+
+    // ============================================================================
+    // Environments
+    // ============================================================================
+
+    /**
+     * List environments in a project.
+     *
+     * @param string $projectId The project ID
+     * @return Environment[] Array of environments
+     * @throws KeyEnvException
+     */
+    public function listEnvironments(string $projectId): array
+    {
+        $path = "/api/v1/projects/{$projectId}/environments";
+        $data = $this->request('GET', $path);
+
+        $environments = [];
+        foreach ($data['data'] ?? [] as $envData) {
+            $environments[] = Environment::fromArray($envData);
+        }
+
+        return $environments;
+    }
+
+    /**
+     * Create a new environment.
+     *
+     * @param string $projectId The project ID
+     * @param string $name The environment name
+     * @param string|null $inheritsFrom Optional parent environment name to inherit secrets from
+     * @return Environment The created environment
+     * @throws KeyEnvException
+     */
+    public function createEnvironment(string $projectId, string $name, ?string $inheritsFrom = null): Environment
+    {
+        $payload = ['name' => $name];
+        if ($inheritsFrom !== null) {
+            $payload['inherits_from'] = $inheritsFrom;
+        }
+
+        $data = $this->request('POST', "/api/v1/projects/{$projectId}/environments", $payload);
+        return Environment::fromArray($data['data'] ?? $data);
+    }
+
+    /**
+     * Delete an environment.
+     *
+     * @param string $projectId The project ID
+     * @param string $environment The environment name
+     * @throws KeyEnvException
+     */
+    public function deleteEnvironment(string $projectId, string $environment): void
+    {
+        $this->request('DELETE', "/api/v1/projects/{$projectId}/environments/{$environment}");
+    }
+
+    // ============================================================================
+    // Secrets
+    // ============================================================================
+
+    /**
+     * List secret keys in an environment (without values).
+     *
+     * @param string $projectId The project ID
+     * @param string $environment The environment name
+     * @return Secret[] Array of secrets (without values)
+     * @throws KeyEnvException
+     */
+    public function listSecrets(string $projectId, string $environment): array
+    {
+        $path = "/api/v1/projects/{$projectId}/environments/{$environment}/secrets";
+        $data = $this->request('GET', $path);
+
+        $secrets = [];
+        foreach ($data['data'] ?? [] as $secretData) {
+            $secrets[] = Secret::fromArray($secretData);
+        }
+
+        return $secrets;
+    }
+
+    /**
+     * Export all secrets for a project environment with their decrypted values.
      *
      * @param string $projectId The project ID
      * @param string $environment The environment name (e.g., 'production', 'development')
      * @return SecretWithValue[] Array of secrets with their values
      * @throws KeyEnvException
      */
-    public function getSecrets(string $projectId, string $environment): array
+    public function exportSecrets(string $projectId, string $environment): array
     {
         $path = "/api/v1/projects/{$projectId}/environments/{$environment}/secrets/export";
         $data = $this->request('GET', $path);
 
         $secrets = [];
-        foreach ($data['secrets'] ?? [] as $secretData) {
+        foreach ($data['data'] ?? [] as $secretData) {
             $secrets[] = SecretWithValue::fromArray($secretData);
         }
 
@@ -94,16 +263,16 @@ class KeyEnv
     }
 
     /**
-     * Get secrets as an associative array (key => value).
+     * Export secrets as an associative array (key => value).
      *
      * @param string $projectId The project ID
      * @param string $environment The environment name
      * @return array<string, string> Associative array of secret key => value
      * @throws KeyEnvException
      */
-    public function getSecretsAsArray(string $projectId, string $environment): array
+    public function exportSecretsAsArray(string $projectId, string $environment): array
     {
-        $secrets = $this->getSecrets($projectId, $environment);
+        $secrets = $this->exportSecrets($projectId, $environment);
         $result = [];
         foreach ($secrets as $secret) {
             $result[$secret->key] = $secret->value;
@@ -125,28 +294,7 @@ class KeyEnv
         $path = "/api/v1/projects/{$projectId}/environments/{$environment}/secrets/{$key}";
         $data = $this->request('GET', $path);
 
-        return SecretWithValue::fromArray($data['secret'] ?? $data);
-    }
-
-    /**
-     * List secret keys in an environment (without values).
-     *
-     * @param string $projectId The project ID
-     * @param string $environment The environment name
-     * @return Secret[] Array of secrets (without values)
-     * @throws KeyEnvException
-     */
-    public function listSecrets(string $projectId, string $environment): array
-    {
-        $path = "/api/v1/projects/{$projectId}/environments/{$environment}/secrets";
-        $data = $this->request('GET', $path);
-
-        $secrets = [];
-        foreach ($data['secrets'] ?? [] as $secretData) {
-            $secrets[] = Secret::fromArray($secretData);
-        }
-
-        return $secrets;
+        return SecretWithValue::fromArray($data['data'] ?? $data);
     }
 
     /**
@@ -175,7 +323,7 @@ class KeyEnv
 
         $data = $this->request('POST', $path, $payload);
 
-        return Secret::fromArray($data['secret'] ?? $data);
+        return Secret::fromArray($data['data'] ?? $data);
     }
 
     /**
@@ -204,7 +352,7 @@ class KeyEnv
 
         $data = $this->request('PUT', $path, $payload);
 
-        return Secret::fromArray($data['secret'] ?? $data);
+        return Secret::fromArray($data['data'] ?? $data);
     }
 
     /**
@@ -250,24 +398,256 @@ class KeyEnv
     }
 
     /**
-     * List environments in a project.
+     * Get secret version history.
      *
      * @param string $projectId The project ID
-     * @return Environment[] Array of environments
+     * @param string $environment The environment name
+     * @param string $key The secret key name
+     * @return SecretHistory[] Array of history entries
      * @throws KeyEnvException
      */
-    public function listEnvironments(string $projectId): array
+    public function getSecretHistory(string $projectId, string $environment, string $key): array
     {
-        $path = "/api/v1/projects/{$projectId}/environments";
+        $path = "/api/v1/projects/{$projectId}/environments/{$environment}/secrets/{$key}/history";
         $data = $this->request('GET', $path);
 
-        $environments = [];
-        foreach ($data['environments'] ?? [] as $envData) {
-            $environments[] = Environment::fromArray($envData);
+        $history = [];
+        foreach ($data['data'] ?? [] as $entry) {
+            $history[] = SecretHistory::fromArray($entry);
         }
 
-        return $environments;
+        return $history;
     }
+
+    /**
+     * Bulk import secrets.
+     *
+     * @param string $projectId The project ID
+     * @param string $environment The environment name
+     * @param array<array{key: string, value: string, description?: string}> $secrets Array of secrets to import
+     * @param array{overwrite?: bool} $options Import options
+     * @return BulkImportResult The import result
+     * @throws KeyEnvException
+     *
+     * @example
+     * ```php
+     * $result = $client->bulkImport('project-id', 'development', [
+     *     ['key' => 'DATABASE_URL', 'value' => 'postgres://...'],
+     *     ['key' => 'API_KEY', 'value' => 'sk_...'],
+     * ], ['overwrite' => true]);
+     * ```
+     */
+    public function bulkImport(
+        string $projectId,
+        string $environment,
+        array $secrets,
+        array $options = []
+    ): BulkImportResult {
+        $path = "/api/v1/projects/{$projectId}/environments/{$environment}/secrets/bulk";
+        $payload = [
+            'secrets' => $secrets,
+            'overwrite' => $options['overwrite'] ?? false,
+        ];
+
+        $data = $this->request('POST', $path, $payload);
+
+        return BulkImportResult::fromArray($data['data'] ?? $data);
+    }
+
+    // ============================================================================
+    // Environment Permissions
+    // ============================================================================
+
+    /**
+     * List all permissions for an environment.
+     *
+     * @param string $projectId The project ID
+     * @param string $environment The environment name
+     * @return EnvironmentPermission[] Array of environment permissions
+     * @throws KeyEnvException
+     *
+     * @example
+     * ```php
+     * $permissions = $client->listPermissions('project-id', 'production');
+     * foreach ($permissions as $perm) {
+     *     echo "{$perm->userEmail}: {$perm->role}\n";
+     * }
+     * ```
+     */
+    public function listPermissions(string $projectId, string $environment): array
+    {
+        $path = "/api/v1/projects/{$projectId}/environments/{$environment}/permissions";
+        $data = $this->request('GET', $path);
+
+        $permissions = [];
+        foreach ($data['data'] ?? [] as $permData) {
+            $permissions[] = EnvironmentPermission::fromArray($permData);
+        }
+
+        return $permissions;
+    }
+
+    /**
+     * Set a user's permission for an environment.
+     *
+     * @param string $projectId The project ID
+     * @param string $environment The environment name
+     * @param string $userId The user ID to set permission for
+     * @param string $role The permission role ('none', 'read', 'write', or 'admin')
+     * @return EnvironmentPermission The created or updated permission
+     * @throws KeyEnvException
+     *
+     * @example
+     * ```php
+     * $permission = $client->setPermission('project-id', 'production', 'user-id', 'write');
+     * echo "Set {$permission->userEmail} to {$permission->role}\n";
+     * ```
+     */
+    public function setPermission(
+        string $projectId,
+        string $environment,
+        string $userId,
+        string $role
+    ): EnvironmentPermission {
+        $path = "/api/v1/projects/{$projectId}/environments/{$environment}/permissions/{$userId}";
+        $data = $this->request('PUT', $path, ['role' => $role]);
+
+        return EnvironmentPermission::fromArray($data['data'] ?? $data);
+    }
+
+    /**
+     * Delete a user's permission for an environment.
+     *
+     * @param string $projectId The project ID
+     * @param string $environment The environment name
+     * @param string $userId The user ID to delete permission for
+     * @throws KeyEnvException
+     *
+     * @example
+     * ```php
+     * $client->deletePermission('project-id', 'production', 'user-id');
+     * ```
+     */
+    public function deletePermission(string $projectId, string $environment, string $userId): void
+    {
+        $path = "/api/v1/projects/{$projectId}/environments/{$environment}/permissions/{$userId}";
+        $this->request('DELETE', $path);
+    }
+
+    /**
+     * Bulk set permissions for multiple users in an environment.
+     *
+     * @param string $projectId The project ID
+     * @param string $environment The environment name
+     * @param array<array{user_id: string, role: string}> $permissions Array of user permissions to set
+     * @return EnvironmentPermission[] Array of created or updated permissions
+     * @throws KeyEnvException
+     *
+     * @example
+     * ```php
+     * $permissions = $client->bulkSetPermissions('project-id', 'production', [
+     *     ['user_id' => 'user-1', 'role' => 'write'],
+     *     ['user_id' => 'user-2', 'role' => 'read'],
+     * ]);
+     * ```
+     */
+    public function bulkSetPermissions(string $projectId, string $environment, array $permissions): array
+    {
+        $path = "/api/v1/projects/{$projectId}/environments/{$environment}/permissions";
+        $data = $this->request('PUT', $path, ['permissions' => $permissions]);
+
+        $result = [];
+        foreach ($data['data'] ?? [] as $permData) {
+            $result[] = EnvironmentPermission::fromArray($permData);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Get the current user's permissions for all environments in a project.
+     *
+     * @param string $projectId The project ID
+     * @return array<string, mixed> The user's permissions and team admin status
+     * @throws KeyEnvException
+     *
+     * @example
+     * ```php
+     * $result = $client->getMyPermissions('project-id');
+     * foreach ($result['permissions'] as $perm) {
+     *     echo "{$perm['environment_name']}: {$perm['role']}\n";
+     * }
+     * ```
+     */
+    public function getMyPermissions(string $projectId): array
+    {
+        return $this->request('GET', "/api/v1/projects/{$projectId}/my-permissions");
+    }
+
+    // ============================================================================
+    // Project Defaults
+    // ============================================================================
+
+    /**
+     * Get default permission settings for a project's environments.
+     *
+     * @param string $projectId The project ID
+     * @return ProjectDefault[] Array of project default permissions
+     * @throws KeyEnvException
+     *
+     * @example
+     * ```php
+     * $defaults = $client->getProjectDefaults('project-id');
+     * foreach ($defaults as $default) {
+     *     echo "{$default->environmentName}: {$default->defaultRole}\n";
+     * }
+     * ```
+     */
+    public function getProjectDefaults(string $projectId): array
+    {
+        $data = $this->request('GET', "/api/v1/projects/{$projectId}/permissions/defaults");
+
+        $defaults = [];
+        foreach ($data['data'] ?? [] as $defaultData) {
+            $defaults[] = ProjectDefault::fromArray($defaultData);
+        }
+
+        return $defaults;
+    }
+
+    /**
+     * Set default permission settings for a project's environments.
+     *
+     * @param string $projectId The project ID
+     * @param array<array{environment_name: string, default_role: string}> $defaults Array of default permissions to set
+     * @return ProjectDefault[] Array of updated project default permissions
+     * @throws KeyEnvException
+     *
+     * @example
+     * ```php
+     * $defaults = $client->setProjectDefaults('project-id', [
+     *     ['environment_name' => 'development', 'default_role' => 'write'],
+     *     ['environment_name' => 'production', 'default_role' => 'read'],
+     * ]);
+     * ```
+     */
+    public function setProjectDefaults(string $projectId, array $defaults): array
+    {
+        $data = $this->request('PUT', "/api/v1/projects/{$projectId}/permissions/defaults", [
+            'defaults' => $defaults,
+        ]);
+
+        $result = [];
+        foreach ($data['data'] ?? [] as $defaultData) {
+            $result[] = ProjectDefault::fromArray($defaultData);
+        }
+
+        return $result;
+    }
+
+    // ============================================================================
+    // Utility Methods
+    // ============================================================================
 
     /**
      * Load secrets into environment variables ($_ENV and putenv).
@@ -279,7 +659,7 @@ class KeyEnv
      */
     public function loadEnv(string $projectId, string $environment): int
     {
-        $secrets = $this->getSecrets($projectId, $environment);
+        $secrets = $this->exportSecrets($projectId, $environment);
         foreach ($secrets as $secret) {
             $_ENV[$secret->key] = $secret->value;
             putenv("{$secret->key}={$secret->value}");
@@ -297,7 +677,7 @@ class KeyEnv
      */
     public function generateEnvFile(string $projectId, string $environment): string
     {
-        $secrets = $this->getSecrets($projectId, $environment);
+        $secrets = $this->exportSecrets($projectId, $environment);
         $lines = [
             '# Generated by KeyEnv',
             "# Environment: {$environment}",
@@ -323,39 +703,9 @@ class KeyEnv
         return implode("\n", $lines) . "\n";
     }
 
-    /**
-     * Validate the token and get current user info.
-     *
-     * @return array<string, mixed> User information
-     * @throws KeyEnvException
-     */
-    public function validateToken(): array
-    {
-        return $this->request('GET', '/api/v1/users/me');
-    }
-
-    /**
-     * List all accessible projects.
-     *
-     * @return array<string, mixed>[] Array of projects
-     * @throws KeyEnvException
-     */
-    public function listProjects(): array
-    {
-        $data = $this->request('GET', '/api/v1/projects');
-        return $data['projects'] ?? [];
-    }
-
-    /**
-     * Get current user information.
-     *
-     * @return array<string, mixed> User information
-     * @throws KeyEnvException
-     */
-    public function getCurrentUser(): array
-    {
-        return $this->request('GET', '/api/v1/users/me');
-    }
+    // ============================================================================
+    // HTTP Client
+    // ============================================================================
 
     /**
      * Make an HTTP request to the API using cURL.
