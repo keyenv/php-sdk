@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/keyenv/php-sdk/compare/v1.2.1...v1.2.2) (2026-02-24)
+
+
+### Bug Fixes
+
+* unwrap data envelope for single-resource API responses ([#3](https://github.com/keyenv/php-sdk/issues/3)) ([6cc8437](https://github.com/keyenv/php-sdk/commit/6cc8437a1ae86299e7f8cb4c8a06583a9ee5f22a))
+
 ## [1.2.1](https://github.com/keyenv/php-sdk/compare/v1.2.0...v1.2.1) (2026-02-16)
 
 
